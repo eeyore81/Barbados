@@ -10,6 +10,7 @@ import SwiftUI
 @main
 struct ManifestlyApp: App {
     @StateObject private var store = AttractViewModel()
+    @State private var showSplash = true
 
     init() {
         #if canImport(UIKit)
@@ -38,8 +39,19 @@ struct ManifestlyApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MainTabView()
-                .environmentObject(store)
+            ZStack {
+                MainTabView()
+                    .environmentObject(store)
+
+                if showSplash {
+                    SplashView {
+                        withAnimation(.easeInOut(duration: 0.8)) {
+                            showSplash = false
+                        }
+                    }
+                    .transition(.opacity)
+                }
+            }
         }
     }
 }

@@ -222,7 +222,7 @@ struct ErudaBrowseView: View {
                         affirmationRow(for: affirmation)
                     }
                 }
-                .padding(.horizontal, 16).padding(.bottom, 100)
+                .padding(.horizontal, 16).padding(.bottom, 130)
             }
             
             // Floating bottom bar
@@ -289,11 +289,13 @@ struct ErudaBrowseView: View {
     
     // MARK: - Background Music
     private func startBgMusic() {
-        guard let url = Bundle.main.url(forResource: "background", withExtension: "mp3")
-                ?? Bundle.main.url(forResource: "background", withExtension: "wav")
-        else { return }
+        guard let dataAsset = NSDataAsset(name: "background") else { return }
         do {
-            bgPlayer = try AVAudioPlayer(contentsOf: url)
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+
+            bgPlayer = try AVAudioPlayer(data: dataAsset.data)
             bgPlayer?.numberOfLoops = -1
             bgPlayer?.volume = 0.22
             bgPlayer?.play()

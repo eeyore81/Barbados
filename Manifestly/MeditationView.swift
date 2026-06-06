@@ -6,6 +6,37 @@ struct FrequencyMeditationView: View {
     @EnvironmentObject var store: AttractViewModel
     @StateObject private var tonePlayer = TonePlayer()
     @State private var selectedFrequency: Double = 432
+    @State private var rotationAngle: Double = 0
+    @State private var showStopOverlay = false
+    private let spinTimer = Timer.publish(every: 0.02, on: .main, in: .common).autoconnect()
+
+    // Galaxy stars - generated once with fixed seed for consistency
+    private let galaxyStars: [GalaxyStar] = {
+        var stars: [GalaxyStar] = []
+        var rng = SeededRandom(seed: 777)
+        let colors: [Color] = [
+            Cosmic.cosmicTeal, Cosmic.cosmicTeal.opacity(0.8),
+            Cosmic.twilight, Cosmic.twilight.opacity(0.8),
+            Cosmic.iceBlue,
+            Cosmic.starlight,
+            Cosmic.roseNebula,
+            Cosmic.goldDust
+        ]
+        for _ in 0..<35 {
+            let radius = 15 + rng.next() * 125
+            let angle = rng.next() * 360
+            stars.append(GalaxyStar(
+                radius: radius,
+                baseAngle: angle,
+                size: 1.5 + rng.next() * 3.5,
+                opacity: 0.45 + rng.next() * 0.4,
+                speed: 0.3 + rng.next() * 1.4,
+                clockwise: rng.next() > 0.5,
+                color: colors[Int(rng.next() * CGFloat(colors.count)) % colors.count]
+            ))
+        }
+        return stars
+    }()
 
     var body: some View {
         ZStack {
@@ -47,99 +78,105 @@ struct FrequencyMeditationView: View {
                     }
                     .padding(.top, 20)
 
-                    ZStack {
-                        Circle()
-                            .stroke(
-                                AngularGradient(
-                                    colors: [
-                                        Cosmic.cosmicTeal.opacity(0.4),
-                                        Cosmic.twilight.opacity(0.6),
-                                        Cosmic.roseNebula.opacity(0.4),
-                                        Cosmic.cosmicTeal.opacity(0.4)
-                                    ],
-                                    center: .center
-                                ),
-                                lineWidth: 3
-                            )
-                            .frame(width: 250, height: 250)
-                            .blur(radius: 0.5)
-
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [
-                                        Cosmic.twilight.opacity(0.3),
-                                        Cosmic.mysticIndigo.opacity(0.15),
-                                        Color.clear
-                                    ],
-                                    center: .center,
-                                    startRadius: 30,
-                                    endRadius: 130
-                                )
-                            )
-                            .frame(width: 240, height: 240)
-                            .shadow(color: Cosmic.twilight.opacity(0.3), radius: 40, x: 0, y: 10)
-
-                        VStack(spacing: 8) {
-                            Text("\(Int(selectedFrequency)) Hz")
-                                .font(.system(size: 52, weight: .bold, design: .rounded))
-                                .foregroundColor(Cosmic.starlight)
-
-                            Text(frequencyDescription)
-                                .font(.body)
-                                .foregroundColor(Cosmic.textSecondary)
-                                .multilineTextAlignment(.center)
-                                .frame(width: 200)
-                        }
-                    }
-
-                    frequencySelector
-
+                    // Interactive frequency circle
                     Button(action: {
                         if tonePlayer.isPlaying {
-                            tonePlayer.stop()
-                            // Stop TTS if playing
-                            if tonePlayer.isAffirmationEnabled {
+                            if showStopOverlay {
+                                tonePlayer.stop()
                                 store.stopPlayback()
+                                showStopOverlay = false
+                                withAnimation(.easeOut(duration: 0.6)) { rotationAngle = 0 }
+                            } else {
+                                withAnimation(.easeInOut(duration: 0.2)) { showStopOverlay = true }
                             }
                         } else {
                             tonePlayer.start(frequency: selectedFrequency)
-                            // Start TTS if affirmation is enabled
+                            store.incrementMeditationSession()
+                            showStopOverlay = false
                             if tonePlayer.isAffirmationEnabled {
+                                store.objectWillChange.send()
                                 let text = store.allSelectedAffirmationsText
-                                if !text.isEmpty {
-                                    store.speakText(text, voiceState: .affirmation)
-                                }
+                                if !text.isEmpty { store.speakText(text, voiceState: .affirmation) }
                             }
                         }
                     }) {
-                        HStack(spacing: 10) {
-                            Image(systemName: tonePlayer.isPlaying ? "stop.fill" : "play.fill")
-                                .font(.system(size: 18, weight: .bold))
-                            Text(tonePlayer.isPlaying ? "멈추기" : "재생하기")
-                                .font(.headline)
+                        ZStack {
+                            // Galaxy stars scattered inside the circle
+                            ForEach(Array(galaxyStars.enumerated()), id: \.offset) { _, star in
+                                Circle()
+                                    .fill(star.color)
+                                    .frame(width: star.size, height: star.size)
+                                    .blur(radius: star.size * 0.35)
+                                    .opacity(star.opacity)
+                                    .offset(
+                                        x: cos(star.baseAngle * .pi / 180) * star.radius,
+                                        y: sin(star.baseAngle * .pi / 180) * star.radius
+                                    )
+                                    .rotationEffect(.degrees(rotationAngle * star.speed * (star.clockwise ? 1 : -1)))
+                            }
+
+                            // Inner glow
+                            Circle()
+                                .fill(
+                                    RadialGradient(
+                                        colors: [
+                                            Cosmic.twilight.opacity(0.3),
+                                            Cosmic.mysticIndigo.opacity(0.15),
+                                            Color.clear
+                                        ],
+                                        center: .center,
+                                        startRadius: 30,
+                                        endRadius: 130
+                                    )
+                                )
+                                .frame(width: 240, height: 240)
+                                .shadow(color: Cosmic.twilight.opacity(0.3), radius: 40, x: 0, y: 10)
+
+                            // Frequency display
+                            VStack(spacing: 8) {
+                                Text("\(Int(selectedFrequency)) Hz")
+                                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                                    .foregroundColor(Cosmic.starlight)
+
+                                Text(frequencyDescription)
+                                    .font(.body)
+                                    .foregroundColor(Cosmic.textSecondary)
+                                    .multilineTextAlignment(.center)
+                                    .frame(width: 200)
+                            }
+
+                            // Play overlay (only when not playing)
+                            if !tonePlayer.isPlaying {
+                                Circle()
+                                    .fill(Color.white.opacity(0.08))
+                                    .frame(width: 80, height: 80)
+                                    .overlay(
+                                        Image(systemName: "play.fill")
+                                            .font(.system(size: 28, weight: .bold))
+                                            .foregroundColor(Cosmic.cosmicTeal)
+                                            .offset(x: 2)
+                                    )
+                                    .offset(y: 60)
+                            }
+
+                            // Stop overlay (only when tapped during playback)
+                            if tonePlayer.isPlaying && showStopOverlay {
+                                Circle()
+                                    .fill(Color.black.opacity(0.5))
+                                    .frame(width: 80, height: 80)
+                                    .overlay(
+                                        Image(systemName: "stop.fill")
+                                            .font(.system(size: 28, weight: .bold))
+                                            .foregroundColor(.white.opacity(0.9))
+                                    )
+                                    .offset(y: 60)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            LinearGradient(
-                                colors: tonePlayer.isPlaying
-                                    ? [Color.red.opacity(0.7), Color.orange.opacity(0.7)]
-                                    : [Cosmic.twilight, Cosmic.cosmicTeal.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .foregroundColor(.white)
-                        .cornerRadius(20)
-                        .shadow(
-                            color: tonePlayer.isPlaying
-                                ? Color.red.opacity(0.3)
-                                : Cosmic.cosmicTeal.opacity(0.3),
-                            radius: 14, x: 0, y: 6
-                        )
                     }
-                    .frame(maxWidth: 360)
+                    .buttonStyle(.plain)
+
+                    frequencySelector
 
                     // Audio options
                     VStack(spacing: 12) {
@@ -149,9 +186,9 @@ struct FrequencyMeditationView: View {
                             Toggle("배경음악", isOn: $tonePlayer.isBgMusicEnabled)
                                 .toggleStyle(SwitchToggleStyle(tint: Cosmic.cosmicTeal))
                         }
-                        .onChange(of: tonePlayer.isBgMusicEnabled) { _ in
+                        .onChange(of: tonePlayer.isBgMusicEnabled) { newValue in
                             tonePlayer.updateBgMusic()
-                            store.setMeditationBg(for: store.selectedErudaState, enabled: tonePlayer.isBgMusicEnabled)
+                            store.setMeditationBg(for: store.selectedErudaState, enabled: newValue)
                         }
 
                         HStack {
@@ -162,14 +199,7 @@ struct FrequencyMeditationView: View {
                         }
                         .onChange(of: tonePlayer.isAffirmationEnabled) { newValue in
                             UserDefaults.standard.set(newValue, forKey: "meditationAffirmationEnabled")
-                            if newValue {
-                                let text = store.allSelectedAffirmationsText
-                                if !text.isEmpty {
-                                    store.speakText(text, voiceState: .affirmation)
-                                }
-                            } else {
-                                store.stopPlayback()
-                            }
+                            if !newValue { store.stopPlayback() }
                         }
                     }
                     .padding(.horizontal, 6)
@@ -183,6 +213,11 @@ struct FrequencyMeditationView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
+            }
+        }
+        .onReceive(spinTimer) { _ in
+            if tonePlayer.isPlaying {
+                rotationAngle += 2.5  // fast visible rotation
             }
         }
         .onAppear {
@@ -483,4 +518,15 @@ final class TonePlayer: ObservableObject {
         engine.pause()
         isPlaying = false
     }
+}
+
+// MARK: - Galaxy Star Model
+private struct GalaxyStar {
+    let radius: CGFloat
+    let baseAngle: CGFloat
+    let size: CGFloat
+    let opacity: CGFloat
+    let speed: CGFloat
+    let clockwise: Bool
+    let color: Color
 }

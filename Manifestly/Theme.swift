@@ -58,7 +58,7 @@ struct StarfieldView: View {
     }
 }
 
-private struct SeededRandom {
+struct SeededRandom {
     var seed: UInt64
     mutating func next() -> CGFloat {
         seed = seed &* 6364136223846793005 &+ 1442695040888963407

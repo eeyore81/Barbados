@@ -33,6 +33,7 @@ final class AttractViewModel: ObservableObject {
     @Published var currentPlayingStateId: UUID?
     @Published var isPlayingCustom: Bool = false
     @Published var selectedErudaState: ErudaState = .wealth
+    @Published var meditationSessionCount: Int = 0
     @Published var affirmationSelections: [ErudaState: AffirmationSelection] = [:]
     @Published var isRandomPlay: Bool = false
     @Published var userAffirmations: [ErudaState: [String]] = [:] {
@@ -244,6 +245,9 @@ final class AttractViewModel: ObservableObject {
         
         // Load saved logs
         logs = loadLogs()
+        
+        // Load meditation count
+        meditationSessionCount = UserDefaults.standard.integer(forKey: "meditationSessionCount")
         
         // Load sample data for other features (only if no saved logs exist)
         loadSampleData()
@@ -523,6 +527,68 @@ final class AttractViewModel: ObservableObject {
             return "긍정 사건 기록이 많을수록 자신감이 상승합니다."
         }
         return "오늘 실행을 추가하면 운 레벨이 빠르게 올라갑니다."
+    }
+
+    // MARK: - Meditation Session
+    func incrementMeditationSession() {
+        meditationSessionCount += 1
+        UserDefaults.standard.set(meditationSessionCount, forKey: "meditationSessionCount")
+        objectWillChange.send()
+    }
+
+    // MARK: - Analytics
+    var gratitudeCount: Int {
+        logs.filter { $0.type == .gratitude }.count
+    }
+
+    var gratitudeStreak: Int {
+        let gratitudeDates = Set(logs.filter { $0.type == .gratitude }.map { Calendar.current.startOfDay(for: $0.date) })
+        var streak = 0
+        var currentDate = Calendar.current.startOfDay(for: Date())
+        while gratitudeDates.contains(currentDate) {
+            streak += 1
+            currentDate = Calendar.current.date(byAdding: .day, value: -1, to: currentDate) ?? currentDate
+        }
+        return streak
+    }
+
+    var thisWeekGratitudeCount: Int {
+        let startOfWeek = Calendar.current.date(from: Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())) ?? Date()
+        return logs.filter { $0.type == .gratitude && $0.date >= startOfWeek }.count
+    }
+
+    var thisWeekLogCount: Int {
+        let startOfWeek = Calendar.current.date(from: Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())) ?? Date()
+        return logs.filter { $0.type != .gratitude && $0.date >= startOfWeek }.count
+    }
+
+    var emotionDistribution: [(EmotionType, Int)] {
+        var counts: [EmotionType: Int] = [:]
+        for log in logs {
+            if let emotion = log.emotion {
+                counts[emotion, default: 0] += 1
+            }
+        }
+        return EmotionType.allCases.map { ($0, counts[$0] ?? 0) }.sorted { $0.1 > $1.1 }
+    }
+
+    var mostFrequentEmotion: EmotionType? {
+        emotionDistribution.first(where: { $0.1 > 0 })?.0
+    }
+
+    var affirmationCategoryDistribution: [(ErudaState, Int)] {
+        ErudaState.allCases.map { state in
+            (state, affirmationSelections[state]?.selectedAffirmations.count ?? 0)
+        }.sorted { $0.1 > $1.1 }
+    }
+
+    var totalSelectedAffirmations: Int {
+        affirmationSelections.values.reduce(0) { $0 + $1.selectedAffirmations.count }
+    }
+
+    var recentActivityDays: [Date] {
+        let sorted = logs.map { Calendar.current.startOfDay(for: $0.date) }
+        return Array(Set(sorted)).sorted(by: >)
     }
 
     // MARK: - Eruda (이루다) Methods
@@ -994,7 +1060,10 @@ final class AttractViewModel: ObservableObject {
     }
 
     func stopPlayback() {
-        // Always recreate synthesizer to ensure clean state
+        // Disable loop BEFORE reset, otherwise resetSynthesizer re-enables it
+        isLoopEnabled = false
+        loopText = nil
+        loopVoiceState = nil
         resetSynthesizer()
         currentPlayingStateId = nil
         isPlayingCustom = false
