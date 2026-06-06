@@ -72,34 +72,20 @@ struct SplashView: View {
             )
             .blendMode(.screen)
 
-            // Galaxy stars
-            GeometryReader { geo in
-                ForEach(0..<galaxyStars.count, id: \.self) { i in
-                    let star = galaxyStars[i]
-                    Circle()
-                        .fill(star.color)
-                        .frame(width: star.size, height: star.size)
-                        .blur(radius: star.size * 0.4)
-                        .opacity(galaxyStarsTwinkle ? star.opacity * 0.5 : star.opacity)
-                        .position(x: star.x * geo.size.width, y: star.y * geo.size.height)
-                        .animation(.easeInOut(duration: 1.5 + star.delay).repeatForever(autoreverses: true), value: galaxyStarsTwinkle)
-                }
-            }
-            .allowsHitTesting(false)
 
             // Rotating mystical ring
             ZStack {
                 ForEach(0..<3) { i in
                     Circle()
                         .stroke(
-                            [Cosmic.cosmicTeal.opacity(0.3), Cosmic.twilight.opacity(0.3), Cosmic.roseNebula.opacity(0.2)][i],
+                            [Cosmic.starlight.opacity(0.25), Cosmic.cosmicTeal.opacity(0.3), Cosmic.goldDust.opacity(0.25)][i],
                             style: StrokeStyle(lineWidth: 1, dash: [2, 30])
                         )
-                        .frame(width: 220 + CGFloat(i) * 30, height: 220 + CGFloat(i) * 30)
-                        .rotationEffect(.degrees(ringRotation * [0.6, -0.4, 0.3][i]))
+                        .frame(width: 160 + CGFloat(i) * 60, height: 160 + CGFloat(i) * 60)
+                        .rotationEffect(.degrees(ringRotation * [0.8, -0.5, 0.25][i]))
                 }
             }
-            .opacity(starScale)
+            .opacity(opacity)
 
             // Central glow
             Circle()
@@ -112,8 +98,7 @@ struct SplashView: View {
                     )
                 )
                 .frame(width: 200, height: 200)
-                .scaleEffect(starScale)
-                .opacity(starScale)
+                .opacity(opacity)
 
             // Content
             VStack(spacing: 32) {
@@ -122,7 +107,6 @@ struct SplashView: View {
                 // App icon / symbol
                 Text("✨")
                     .font(.system(size: 50))
-                    .scaleEffect(starScale)
 
                 // Quote
                 Text(quote.text)
@@ -153,14 +137,11 @@ struct SplashView: View {
         }
     }
         .onAppear {
-            // Animate in
-            withAnimation(.easeOut(duration: 1.0)) { starScale = 1.0 }
             withAnimation(.linear(duration: 20).repeatForever(autoreverses: false)) {
                 ringRotation = 360
             }
             withAnimation(.easeOut(duration: 1.2).delay(0.6)) { opacity = 1.0 }
             withAnimation(.easeOut(duration: 1.0).delay(1.8)) { authorOpacity = 0.8 }
-            galaxyStarsTwinkle = true
         }
         .onTapGesture {
             onDismiss()

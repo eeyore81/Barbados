@@ -28,8 +28,8 @@ struct FrequencyMeditationView: View {
             stars.append(GalaxyStar(
                 radius: radius,
                 baseAngle: angle,
-                size: 1.5 + rng.next() * 3.5,
-                opacity: 0.45 + rng.next() * 0.4,
+                size: 1 + rng.next() * 2.5,
+                opacity: 0.55 + rng.next() * 0.45,
                 speed: 0.3 + rng.next() * 1.4,
                 clockwise: rng.next() > 0.5,
                 color: colors[Int(rng.next() * CGFloat(colors.count)) % colors.count]
@@ -106,7 +106,7 @@ struct FrequencyMeditationView: View {
                                 Circle()
                                     .fill(star.color)
                                     .frame(width: star.size, height: star.size)
-                                    .blur(radius: star.size * 0.35)
+                                    .blur(radius: star.size * 0.2)
                                     .opacity(star.opacity)
                                     .offset(
                                         x: cos(star.baseAngle * .pi / 180) * star.radius,
